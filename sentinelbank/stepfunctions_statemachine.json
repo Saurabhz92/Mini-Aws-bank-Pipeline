@@ -1,0 +1,218 @@
+{
+  "Comment": "SentinelBank Fraud Flagging Pipeline - Processes transaction files and routes based on risk assessment",
+  "StartAt": "ValidateFile",
+  "States": {
+    "ValidateFile": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-south-1:ACCOUNT_ID:function:SentinelBank-FileValidator",
+        "Payload": {
+          "bucket.$": "$.bucket",
+          "s3Key.$": "$.s3Key"
+        }
+      },
+      "ResultSelector": {
+        "validation.$": "$.Payload",
+        "bucket.$": "$.Payload.bucket",
+        "s3Key.$": "$.Payload.s3Key"
+      },
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "ValidationFailure"
+        }
+      ],
+      "Next": "CheckValidation"
+    },
+    
+    "CheckValidation": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.validation.isValid",
+          "BooleanEquals": false,
+          "Next": "ValidationFailure"
+        }
+      ],
+      "Default": "ScoreRisk"
+    },
+    
+    "ValidationFailure": {
+      "Type": "Fail",
+      "Error": "FileValidationError",
+      "Cause": "File failed validation checks - see errors in validation result"
+    },
+    
+    "ScoreRisk": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-south-1:ACCOUNT_ID:function:SentinelBank-RiskScorer",
+        "Payload": {
+          "bucket.$": "$.bucket",
+          "s3Key.$": "$.s3Key",
+          "validationMetadata.$": "$.validation.metadata"
+        }
+      },
+      "ResultSelector": {
+        "riskAnalysis.$": "$.Payload",
+        "bucket.$": "$.Payload.bucket",
+        "s3Key.$": "$.Payload.s3Key"
+      },
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "ProcessingFailure"
+        }
+      ],
+      "Next": "RouteByRisk"
+    },
+    
+    "RouteByRisk": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.riskAnalysis.riskLevel",
+          "StringEquals": "HIGH",
+          "Next": "MoveToAudit"
+        }
+      ],
+      "Default": "MoveToArchive"
+    },
+    
+    "MoveToAudit": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Parameters": {
+        "Bucket": "sentinel-bank-transactions-vault",
+        "CopySource.$": "States.Format('{}/{}', $.bucket, $.s3Key)",
+        "Key.$": "States.Format('audit-high-risk/{}', States.ArrayGetItem(States.StringSplit($.s3Key, '/'), 1))",
+        "ServerSideEncryption": "AES256"
+      },
+      "ResultPath": "$.copyResult",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "DeleteFromInbound_HighRisk"
+    },
+    
+    "DeleteFromInbound_HighRisk": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:deleteObject",
+      "Parameters": {
+        "Bucket.$": "$.bucket",
+        "Key.$": "$.s3Key"
+      },
+      "ResultPath": null,
+      "Next": "SendComplianceAlert"
+    },
+    
+    "SendComplianceAlert": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:ap-south-1:ACCOUNT_ID:SentinelBank-ComplianceAlerts",
+        "Subject": "🚨 SentinelBank - High-Risk Transaction Batch Detected",
+        "Message.$": "States.Format('⚠️ HIGH-RISK TRANSACTION BATCH DETECTED\n\nFile: {}\nHigh-Risk Transactions: {} out of {}\nRisk Percentage: {}%\n\nRisk Factors:\n{}\n\nAction Required: Review file in S3 bucket at:\ns3://sentinel-bank-transactions-vault/audit-high-risk/{}\n\nTimestamp: {}\n\n---\nSentinelBank Automated Compliance System', $.riskAnalysis.fileName, $.riskAnalysis.highRiskCount, $.riskAnalysis.totalTransactions, $.riskAnalysis.riskPercentage, States.JsonToString($.riskAnalysis.riskReasons), $.riskAnalysis.fileName, $.riskAnalysis.timestamp)"
+      },
+      "ResultPath": "$.snsResult",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "HighRiskProcessed"
+    },
+    
+    "HighRiskProcessed": {
+      "Type": "Succeed",
+      "Comment": "High-risk file successfully moved to audit and compliance team notified"
+    },
+    
+    "MoveToArchive": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Parameters": {
+        "Bucket": "sentinel-bank-transactions-vault",
+        "CopySource.$": "States.Format('{}/{}', $.bucket, $.s3Key)",
+        "Key.$": "States.Format('archive-cleared/{}', States.ArrayGetItem(States.StringSplit($.s3Key, '/'), 1))",
+        "ServerSideEncryption": "AES256"
+      },
+      "ResultPath": "$.copyResult",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "DeleteFromInbound_Cleared"
+    },
+    
+    "DeleteFromInbound_Cleared": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:deleteObject",
+      "Parameters": {
+        "Bucket.$": "$.bucket",
+        "Key.$": "$.s3Key"
+      },
+      "ResultPath": null,
+      "Next": "ClearedProcessed"
+    },
+    
+    "ClearedProcessed": {
+      "Type": "Succeed",
+      "Comment": "Cleared transactions successfully archived"
+    },
+    
+    "ProcessingFailure": {
+      "Type": "Fail",
+      "Error": "RiskScoringError",
+      "Cause": "Failed to analyze transaction risk - see error details"
+    }
+  }
+}

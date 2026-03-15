@@ -1,0 +1,33 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowS3UploadToInbound",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:PutObjectAcl"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sentinel-bank-transactions-vault/inbound/*"
+            ]
+        },
+        {
+            "Sid": "AllowS3BucketList",
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sentinel-bank-transactions-vault"
+            ],
+            "Condition": {
+                "StringLike": {
+                    "s3:prefix": [
+                        "inbound/*"
+                    ]
+                }
+            }
+        }
+    ]
+}

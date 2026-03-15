@@ -1,0 +1,60 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowS3ReadFromInbound",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:GetObjectVersion"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sentinel-bank-transactions-vault/inbound/*"
+            ]
+        },
+        {
+            "Sid": "AllowS3WriteToProcessedFolders",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:PutObjectAcl"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sentinel-bank-transactions-vault/audit-high-risk/*",
+                "arn:aws:s3:::sentinel-bank-transactions-vault/archive-cleared/*"
+            ]
+        },
+        {
+            "Sid": "AllowS3DeleteFromInbound",
+            "Effect": "Allow",
+            "Action": [
+                "s3:DeleteObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sentinel-bank-transactions-vault/inbound/*"
+            ]
+        },
+        {
+            "Sid": "AllowS3HeadObject",
+            "Effect": "Allow",
+            "Action": [
+                "s3:HeadObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sentinel-bank-transactions-vault/inbound/*"
+            ]
+        },
+        {
+            "Sid": "AllowCloudWatchLogs",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:ap-south-1:*:log-group:/aws/lambda/SentinelBank-*"
+            ]
+        }
+    ]
+}

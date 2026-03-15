@@ -1,0 +1,48 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowLambdaInvoke",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:InvokeFunction"
+            ],
+            "Resource": [
+                "arn:aws:lambda:ap-south-1:*:function:SentinelBank-FileValidator",
+                "arn:aws:lambda:ap-south-1:*:function:SentinelBank-RiskScorer"
+            ]
+        },
+        {
+            "Sid": "AllowSNSPublish",
+            "Effect": "Allow",
+            "Action": [
+                "sns:Publish"
+            ],
+            "Resource": [
+                "arn:aws:sns:ap-south-1:*:SentinelBank-ComplianceAlerts"
+            ]
+        },
+        {
+            "Sid": "AllowS3Operations",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:CopyObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sentinel-bank-transactions-vault/*"
+            ]
+        },
+        {
+            "Sid": "AllowXRayTracing",
+            "Effect": "Allow",
+            "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

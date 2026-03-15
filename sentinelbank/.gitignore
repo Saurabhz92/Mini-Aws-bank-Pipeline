@@ -1,0 +1,65 @@
+# .gitignore for SentinelBank Project
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+test_transactions.csv
+daily_transactions*.csv
+*.log
+
+# AWS
+lambda_packages/
+*.zip
+stepfunctions_updated.json
+*-trust-policy.json
+empty.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive
+*.pem
+*.key
+credentials
+config
+
+# Temporary
+*.tmp
+*.bak
